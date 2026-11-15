@@ -1,0 +1,41 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "1. Launch Windows Café Simulator GUI",
+            "type": "shell",
+            "command": "python gui_simulator/cafe_simulator_gui.py",
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "2. Build ROS 2 Package (colcon build in Linux / WSL)",
+            "type": "shell",
+            "command": "colcon build --symlink-install",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "3. Source & Run Full ROS 2 Simulation (Linux / WSL)",
+            "type": "shell",
+            "command": "bash src/rf_delivery_bot/scripts/run_simulation.sh",
+            "problemMatcher": []
+        },
+        {
+            "label": "4. Verify Python Syntax of All Nodes",
+            "type": "shell",
+            "command": "python -m py_compile gui_simulator/cafe_simulator_gui.py src/rf_delivery_bot/rf_delivery_bot/rssi_navigator.py src/rf_delivery_bot/rssi_filter/rssi_filter_node.py",
+            "problemMatcher": []
+        }
+    ]
+}

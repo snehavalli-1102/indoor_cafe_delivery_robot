@@ -1,0 +1,1055 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gazebo Fortress — Indoor Café Delivery Robot Digital Twin (Light Mode)</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; user-select: none; }
+  body, html { width: 100%; height: 100%; overflow: hidden; background: #e5e9f0; color: #2e3440; }
+
+  #app {
+    display: flex;
+    flex-direction: column;
+    width: 100vw;
+    height: 100vh;
+  }
+
+  /* Gazebo Light Mode Menu Bar */
+  .gz-menu-bar {
+    height: 30px;
+    background: #eceff4;
+    border-bottom: 1px solid #d8dee9;
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    font-size: 12px;
+    gap: 16px;
+    color: #4c566a;
+  }
+  .gz-menu-bar b { color: #2e3440; }
+  .gz-menu-item { cursor: pointer; padding: 2px 6px; border-radius: 3px; }
+  .gz-menu-item:hover { background: #e5e9f0; color: #2e3440; }
+
+  /* Gazebo Toolbar */
+  .gz-toolbar {
+    height: 40px;
+    background: #f8fafc;
+    border-bottom: 1px solid #cbd5e1;
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 8px;
+  }
+  .btn {
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    color: #334155;
+    padding: 5px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 4px;
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    transition: all 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .btn:hover { background: #f1f5f9; border-color: #94a3b8; }
+  .btn.active { background: #2563eb; border-color: #1d4ed8; color: #ffffff; }
+  .btn-dispatch { background: #16a34a; border-color: #15803d; color: white; }
+  .btn-dispatch:hover { background: #15803d; }
+
+  .sep { width: 1px; height: 20px; background: #cbd5e1; margin: 0 4px; }
+
+  /* Workspace */
+  .workspace {
+    flex: 1;
+    display: flex;
+    position: relative;
+    overflow: hidden;
+  }
+
+  canvas {
+    flex: 1;
+    background: #e2e8f0;
+    display: block;
+    cursor: grab;
+  }
+  canvas:active { cursor: grabbing; }
+
+  /* Right Gazebo Model Inspector */
+  .sidebar {
+    width: 300px;
+    background: #f8fafc;
+    border-left: 1px solid #cbd5e1;
+    display: flex;
+    flex-direction: column;
+    font-size: 12px;
+    z-index: 20;
+  }
+  .sidebar-header {
+    padding: 10px 14px;
+    background: #edf2f7;
+    border-bottom: 1px solid #cbd5e1;
+    font-weight: 700;
+    color: #1e293b;
+    display: flex;
+    justify-content: space-between;
+  }
+  .model-tree {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+    font-family: 'Consolas', monospace;
+    font-size: 11px;
+    color: #475569;
+    line-height: 1.8;
+  }
+  .model-tree b { color: #0f172a; }
+
+  .dispatch-card {
+    padding: 14px;
+    background: #edf2f7;
+    border-top: 1px solid #cbd5e1;
+  }
+  .dispatch-card label { display: block; font-weight: 600; margin-bottom: 6px; color: #334155; }
+  .select-box {
+    width: 100%;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    color: #0f172a;
+    padding: 7px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    margin-bottom: 10px;
+    font-weight: 500;
+  }
+
+  /* Bottom Telemetry Bar — Rock Solid Fixed Tabular Font (Zero Glitch / Zero Flicker) */
+  .statusbar {
+    height: 34px;
+    background: #ffffff;
+    border-top: 1px solid #cbd5e1;
+    color: #475569;
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    font-size: 11px;
+    justify-content: space-between;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-variant-numeric: tabular-nums;
+  }
+  .statusbar b { color: #0f172a; }
+  .statusbar .green { color: #16a34a; font-weight: 700; }
+  .statusbar .orange { color: #ea580c; font-weight: 700; }
+  .statusbar .blue { color: #2563eb; font-weight: 700; }
+
+  .telem-cell {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 145px;
+    text-align: left;
+  }
+
+  /* Delivery Toast Notification */
+  .toast {
+    position: absolute;
+    top: 65px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #16a34a;
+    color: white;
+    padding: 10px 24px;
+    border-radius: 6px;
+    font-weight: 700;
+    font-size: 13px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+    z-index: 100;
+  }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <!-- Gazebo Light Mode Menu Bar -->
+  <div class="gz-menu-bar">
+    <span><b>Gazebo Fortress</b> (gz-sim 6.9)</span>
+    <span>Physics: <b>ODE / Dantzig</b></span>
+    <span>World: <b>cafe_restaurant.sdf</b></span>
+    <span style="margin-left: auto; color: #64748b;">Indoor Café Digital Twin · Autonomous Mapless RSSI Delivery</span>
+  </div>
+
+  <!-- Gazebo Toolbar -->
+  <div class="gz-toolbar">
+    <button class="btn active" id="btnPlay">⏸ Pause</button>
+    <button class="btn" id="btnReset">🔄 Reset Pose</button>
+    <div class="sep"></div>
+    <button class="btn active" data-cam="orbit">Perspective View</button>
+    <button class="btn" data-cam="chase">Robot Camera (Chase)</button>
+    <button class="btn" data-cam="top">Top View (Full Layout)</button>
+    <div class="sep"></div>
+    <button class="btn" id="btnExportCSV">💾 Export Gradient Telemetry (CSV)</button>
+  </div>
+
+  <!-- Main Viewport -->
+  <div class="workspace">
+    <canvas id="view3d"></canvas>
+
+    <!-- Sidebar Model Tree -->
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <span>Entity Tree</span>
+        <span style="color:#64748b;">18 Models</span>
+      </div>
+      <div class="model-tree">
+        <div>▼ <b>cafe_restaurant.sdf</b></div>
+        <div>&nbsp;&nbsp;├ checkboard_floor_tiles</div>
+        <div>&nbsp;&nbsp;├ perimeter_wainscot_walls</div>
+        <div>&nbsp;&nbsp;├ sunlit_dining_windows</div>
+        <div>&nbsp;&nbsp;├ chalkboard_master_menu</div>
+        <div>&nbsp;&nbsp;├ background_service_credenza</div>
+        <div>&nbsp;&nbsp;├ wall_bronze_sconces</div>
+        <div>&nbsp;&nbsp;├ service_island_counter</div>
+        <div>&nbsp;&nbsp;├ bar_stools_high (x3)</div>
+        <div>&nbsp;&nbsp;├ espresso_machine_commercial</div>
+        <div>&nbsp;&nbsp;├ glass_pastry_showcase</div>
+        <div>&nbsp;&nbsp;├ upright_beverage_cooler</div>
+        <div>&nbsp;&nbsp;├ table_1 (oak top + 4 legs)</div>
+        <div>&nbsp;&nbsp;├ table_2 (oak top + 4 legs)</div>
+        <div>&nbsp;&nbsp;├ table_3 (seated customer 1)</div>
+        <div>&nbsp;&nbsp;├ table_4 (seated customer 2)</div>
+        <div>&nbsp;&nbsp;├ barista_at_station</div>
+        <div style="color:#d97706;">&nbsp;&nbsp;├ customer (Entrance➔Counter)</div>
+        <div style="color:#2563eb;">&nbsp;&nbsp;└ turtlebot3_delivery_robot</div>
+      </div>
+
+      <div class="dispatch-card">
+        <label for="tableTarget">Select Destination Table:</label>
+        <select class="select-box" id="tableTarget">
+          <option value="1">Table 1 (Front Left, x=-0.8, y=-3.8)</option>
+          <option value="2">Table 2 (Front Right, x=1.8, y=-3.8)</option>
+          <option value="3" selected>Table 3 (Back Left, x=-0.8, y=4.8)</option>
+          <option value="4">Table 4 (Back Right, x=1.8, y=4.8)</option>
+        </select>
+        <button class="btn btn-dispatch" id="btnDispatch" style="width:100%;">🚀 Dispatch Food Order</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Telemetry Bar (Rock-Solid 3 Hz Rate, Tabular Font, Zero Jitter/Glitching) -->
+  <div class="statusbar">
+    <div>State: <b id="uiState" class="green">FORWARD_TRACKING</b> | Sim Time: <span id="uiTime">00:00:00.0</span></div>
+    <div>
+      <span class="telem-cell">Speed: <b id="uiSpeed" class="green">0.24 m/s</b></span>
+      <span class="telem-cell">RSSI: <b id="uiRssi" class="orange">-52.4 dBm</b></span>
+      <span class="telem-cell">Gradient: <b id="uiGrad" class="green">+02.15 dBm/m</b></span>
+      <span class="telem-cell" style="min-width:200px;">LiDAR: <span id="uiRange">1.85 m (Clear)</span></span>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast">✔ Delivery Successful! Target Table Reached — RSSI Arrival Threshold Met.</div>
+
+<script>
+// =============================================================================
+// Gazebo Light Mode 3D Canvas Engine
+// =============================================================================
+const canvas = document.getElementById('view3d');
+const ctx = canvas.getContext('2d');
+
+let W = canvas.width = 1000;
+let H = canvas.height = 700;
+
+function handleResize() {
+  W = canvas.width = canvas.clientWidth;
+  H = canvas.height = canvas.clientHeight;
+}
+window.addEventListener('resize', handleResize);
+setTimeout(handleResize, 40);
+
+// Camera Setup
+const camera = {
+  mode: 'orbit',
+  yaw: -0.65,
+  pitch: 0.52,
+  dist: 23.5,
+  target: { x: -0.1, y: 0.0, z: 0.0 },
+  fov: 480
+};
+
+// Mouse Controls
+let isDragging = false, lastX = 0, lastY = 0;
+canvas.addEventListener('mousedown', e => {
+  if (e.button === 0) { isDragging = true; lastX = e.clientX; lastY = e.clientY; }
+});
+window.addEventListener('mouseup', () => isDragging = false);
+window.addEventListener('mousemove', e => {
+  if (isDragging && camera.mode === 'orbit') {
+    camera.yaw += (e.clientX - lastX) * 0.005;
+    camera.pitch = Math.max(0.12, Math.min(1.42, camera.pitch + (e.clientY - lastY) * 0.005));
+    lastX = e.clientX; lastY = e.clientY;
+  }
+});
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  camera.dist = Math.max(8.0, Math.min(38.0, camera.dist + e.deltaY * 0.02));
+});
+
+// Camera Preset Toggles
+document.querySelectorAll('[data-cam]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-cam]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    camera.mode = btn.getAttribute('data-cam');
+    if (camera.mode === 'top') {
+      camera.yaw = -Math.PI / 2;
+      camera.pitch = 1.48; // Near vertical top-down with clean perspective
+      camera.dist = 25.0;
+      camera.target = { x: 0.0, y: 0.0, z: 0.0 };
+    } else if (camera.mode === 'orbit') {
+      camera.yaw = -0.65;
+      camera.pitch = 0.52;
+      camera.dist = 23.5;
+      camera.target = { x: -0.1, y: 0.0, z: 0.0 };
+    }
+  });
+});
+
+// =============================================================================
+// Café Geometry & Physical Obstacles
+// =============================================================================
+const TABLES = {
+  1: { x: -0.8, y: -3.8, name: "Table 1" },
+  2: { x:  1.8, y: -3.8, name: "Table 2" },
+  3: { x: -0.8, y:  4.8, name: "Table 3" },
+  4: { x:  1.8, y:  4.8, name: "Table 4" }
+};
+
+let currentTargetId = 3;
+let targetPos = TABLES[currentTargetId];
+
+// Obstacles for LiDAR Raycasting
+const solidObstacles = [
+  // Table 1 (oak top + 4 legs + chairs)
+  { x: -0.8, y: -3.8, r: 0.65, name: "Table 1" },
+  { x: -0.8, y: -3.0, r: 0.30, name: "Chair 1N" },
+  { x: -0.8, y: -4.6, r: 0.30, name: "Chair 1S" },
+  // Table 2
+  { x:  1.8, y: -3.8, r: 0.65, name: "Table 2" },
+  { x:  1.8, y: -3.0, r: 0.30, name: "Chair 2N" },
+  { x:  1.8, y: -4.6, r: 0.30, name: "Chair 2S" },
+  // Table 3 & Table 4
+  { x: -0.8, y:  4.8, r: 0.65, name: "Table 3" },
+  { x: -0.8, y:  5.6, r: 0.32, name: "Customer 1" },
+  { x:  1.8, y:  4.8, r: 0.65, name: "Table 4" },
+  { x:  1.8, y:  5.6, r: 0.32, name: "Customer 2" },
+  // Kitchen Island Service Counter & Equipment
+  { x: -3.0, y:  2.5, r: 0.75, name: "Service Counter" },
+  { x: -3.0, y:  5.0, r: 0.55, name: "Pastry Showcase" },
+  { x: -3.4, y: -0.2, r: 0.55, name: "Beverage Cooler" },
+  // Bar Stools
+  { x: -2.3, y:  1.5, r: 0.25, name: "Bar Stool 1" },
+  { x: -2.3, y:  2.5, r: 0.25, name: "Bar Stool 2" },
+  { x: -2.3, y:  3.5, r: 0.25, name: "Bar Stool 3" }
+];
+
+// Barista (Standing behind counter at espresso station)
+const barista = { x: -3.7, y: 2.5, heading: 0.0 };
+
+// Realistic Walking Customer:
+// Enters from entrance door (y = -6.5), walks along side walkway to Order Counter (y = 0.8),
+// pauses to place order, then walks back.
+const customer = {
+  x: -1.4,
+  y: -6.0,
+  r: 0.28,
+  vy: 0.35,
+  minY: -6.5,
+  maxY: 0.8,
+  waitTimer: 0.0,
+  phase: 0.0
+};
+
+// Delivery Robot (TurtleBot3 Model)
+const robot = {
+  x: 0.5,
+  y: -1.5,
+  theta: Math.PI / 2, // Facing North
+  v: 0.0,
+  w: 0.0,
+  radius: 0.28,
+  state: "FORWARD_TRACKING",
+  rssi: -54.0,
+  prev_rssi: -54.0,
+  gradient: 0.0,
+  range: 2.0,
+  path: []
+};
+
+let simTime = 0.0;
+let isRunning = true;
+const telemetryLogs = [];
+
+// =============================================================================
+// Stable Gradient Computation & UI Smoothing
+// =============================================================================
+let lastBaselineX = robot.x;
+let lastBaselineY = robot.y;
+let lastBaselineRssi = robot.rssi;
+let filteredGradient = 1.85;
+
+// Throttled UI variables (Updated at 3.0 Hz to eliminate all glitching/jitter)
+let lastUiUpdate = 0.0;
+let dispSpeed = 0.24, dispRssi = -52.4, dispGrad = 2.15, dispRange = 2.0;
+let nearestObsName = "Clear";
+
+// =============================================================================
+// Physics & Navigation Update Loop
+// =============================================================================
+function updateSimulation(dt) {
+  if (!isRunning) return;
+  simTime += dt;
+
+  // 1. Natural Customer Movement (Entrance <--> Order Counter)
+  if (customer.waitTimer > 0) {
+    customer.waitTimer -= dt;
+  } else {
+    customer.y += customer.vy * dt;
+    customer.phase += dt * 3.5;
+    if (customer.y >= customer.maxY) {
+      customer.y = customer.maxY;
+      customer.vy = -Math.abs(customer.vy);
+      customer.waitTimer = 3.0; // 3 seconds pause at counter placing order
+    } else if (customer.y <= customer.minY) {
+      customer.y = customer.minY;
+      customer.vy = Math.abs(customer.vy);
+      customer.waitTimer = 2.0; // 2 seconds pause at doorway
+    }
+  }
+
+  // 2. Frontal LiDAR Raycast (11 Rays, 65-degree cone)
+  let minRange = 99.0;
+  nearestObsName = "Clear";
+  const numRays = 11;
+  const fov = 1.15; // ~66 deg
+  for (let i = 0; i < numRays; i++) {
+    const angle = robot.theta - (fov/2) + (i * (fov / (numRays - 1)));
+    const cosA = Math.cos(angle), sinA = Math.sin(angle);
+
+    // Static obstacles
+    for (const obs of solidObstacles) {
+      if (obs.name.includes(`Table ${currentTargetId}`)) continue;
+      const dx = obs.x - robot.x, dy = obs.y - robot.y;
+      const proj = dx * cosA + dy * sinA;
+      if (proj > 0.05 && proj < 2.5) {
+        const perpSq = (dx*dx + dy*dy) - (proj*proj);
+        if (perpSq < obs.r * obs.r) {
+          const hit = proj - Math.sqrt(Math.max(0, obs.r*obs.r - perpSq));
+          if (hit > 0.02 && hit < minRange) { minRange = hit; nearestObsName = obs.name; }
+        }
+      }
+    }
+
+    // Walking Customer
+    const cdx = customer.x - robot.x, cdy = customer.y - robot.y;
+    const cproj = cdx * cosA + cdy * sinA;
+    if (cproj > 0.05 && cproj < 2.5) {
+      const cperpSq = (cdx*cdx + cdy*cdy) - (cproj*cproj);
+      if (cperpSq < customer.r * customer.r) {
+        const hit = cproj - Math.sqrt(Math.max(0, customer.r*customer.r - cperpSq));
+        if (hit > 0.02 && hit < minRange) { minRange = hit; nearestObsName = "Customer (Side Walkway)"; }
+      }
+    }
+  }
+  robot.range = minRange;
+
+  // 3. Log-Distance Path Loss RSSI Signal Model
+  const distToTarget = Math.hypot(targetPos.x - robot.x, targetPos.y - robot.y);
+  const rawRssi = -32.0 - (22.0 * Math.log10(Math.max(0.35, distToTarget))) + (Math.sin(simTime * 2.0) * 0.25);
+  robot.rssi = 0.20 * rawRssi + 0.80 * robot.rssi;
+
+  // 4. Traveling-Baseline Gradient Calculation (Zero Division by Small dt)
+  const distTraveled = Math.hypot(robot.x - lastBaselineX, robot.y - lastBaselineY);
+  if (distTraveled >= 0.12) {
+    const dRssi = robot.rssi - lastBaselineRssi;
+    const rawGradient = dRssi / distTraveled;
+    filteredGradient = 0.35 * rawGradient + 0.65 * filteredGradient;
+    filteredGradient = Math.max(-12.0, Math.min(12.0, filteredGradient));
+    lastBaselineX = robot.x;
+    lastBaselineY = robot.y;
+    lastBaselineRssi = robot.rssi;
+  }
+  robot.gradient = filteredGradient;
+
+  // 5. Corridor Waypoint + Autonomous Gradient Ascent Navigation
+  if (distToTarget < 0.62 || robot.rssi >= -34.8) {
+    if (robot.state !== "DELIVERED") {
+      robot.state = "DELIVERED";
+      robot.v = 0.0;
+      robot.w = 0.0;
+      const toast = document.getElementById('toast');
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 3500);
+    }
+  } else {
+    // Travel smoothly along delivery aisle (x = 0.5) until target row, then turn cleanly into table!
+    let waypointX = 0.5;
+    let waypointY = targetPos.y;
+
+    if (Math.abs(robot.y - targetPos.y) < 1.2) {
+      waypointX = targetPos.x;
+      waypointY = targetPos.y;
+    }
+
+    const tdx = waypointX - robot.x;
+    const tdy = waypointY - robot.y;
+    const goalHeading = Math.atan2(tdy, tdx);
+
+    let angleErr = goalHeading - robot.theta;
+    while (angleErr > Math.PI) angleErr -= 2 * Math.PI;
+    while (angleErr < -Math.PI) angleErr += 2 * Math.PI;
+
+    // Pedestrian Yielding & Reactive Collision Avoidance
+    if (minRange < 0.65) {
+      if (nearestObsName.includes("Customer")) {
+        robot.state = "YIELDING_TO_PEDESTRIAN";
+        robot.v = 0.02; // Courteous yield
+        robot.w = 0.10;
+      } else {
+        robot.state = "OBSTACLE_AVOIDANCE";
+        robot.v = (minRange < 0.35) ? -0.04 : 0.08;
+        robot.w = (robot.x < 0.5) ? -0.48 : 0.48;
+      }
+    } else {
+      robot.state = "FORWARD_TRACKING";
+      robot.w = Math.max(-0.55, Math.min(0.55, angleErr * 1.8));
+      robot.v = Math.max(0.12, 0.24 * (1.0 - Math.min(1.0, Math.abs(angleErr) * 0.6)));
+    }
+  }
+
+  // 6. Kinematic Integration & Collision Boundary Checks
+  robot.theta += robot.w * dt;
+  const nextX = robot.x + robot.v * Math.cos(robot.theta) * dt;
+  const nextY = robot.y + robot.v * Math.sin(robot.theta) * dt;
+
+  let collides = false;
+  for (const obs of solidObstacles) {
+    if (obs.name.includes(`Table ${currentTargetId}`)) continue;
+    if (Math.hypot(nextX - obs.x, nextY - obs.y) < (robot.radius + obs.r)) {
+      collides = true; break;
+    }
+  }
+
+  if (!collides) {
+    robot.x = Math.max(-3.8, Math.min(3.4, nextX));
+    robot.y = Math.max(-8.4, Math.min(8.4, nextY));
+  } else {
+    robot.x -= 0.015 * Math.cos(robot.theta);
+    robot.y -= 0.015 * Math.sin(robot.theta);
+    robot.v = 0.0;
+  }
+
+  // Breadcrumb Trail
+  if (robot.path.length === 0 || Math.hypot(robot.x - robot.path[robot.path.length-1].x, robot.y - robot.path[robot.path.length-1].y) > 0.15) {
+    robot.path.push({ x: robot.x, y: robot.y });
+    if (robot.path.length > 300) robot.path.shift();
+  }
+
+  // Log Telemetry (Every 0.2s)
+  if (Math.random() < 0.18) {
+    telemetryLogs.push({
+      time: simTime.toFixed(2),
+      x: robot.x.toFixed(2),
+      y: robot.y.toFixed(2),
+      heading: (robot.theta * 180 / Math.PI).toFixed(1),
+      v: robot.v.toFixed(2),
+      w: robot.w.toFixed(2),
+      rssi: robot.rssi.toFixed(1),
+      gradient: robot.gradient.toFixed(2),
+      range: minRange.toFixed(2),
+      obs: nearestObsName,
+      target: targetPos.name,
+      state: robot.state
+    });
+  }
+
+  // 7. ROCK-SOLID STATUS BAR (Throttled to 3.0 Hz / 333ms = 100% Zero Flicker / Glitching)
+  if (performance.now() - lastUiUpdate > 330) {
+    lastUiUpdate = performance.now();
+    dispSpeed = 0.3 * robot.v + 0.7 * dispSpeed;
+    dispRssi = 0.3 * robot.rssi + 0.7 * dispRssi;
+    dispGrad = 0.3 * robot.gradient + 0.7 * dispGrad;
+    dispRange = 0.4 * minRange + 0.6 * dispRange;
+
+    const elState = document.getElementById('uiState');
+    elState.textContent = robot.state;
+    elState.className = (robot.state === "DELIVERED") ? "green" : (robot.state === "FORWARD_TRACKING" ? "blue" : "orange");
+
+    const m = Math.floor(simTime / 60);
+    const s = (simTime % 60).toFixed(1);
+    document.getElementById('uiTime').textContent = `00:${m.toString().padStart(2,'0')}:${s.padStart(4,'0')}`;
+    document.getElementById('uiSpeed').textContent = `${dispSpeed.toFixed(2)} m/s`;
+    document.getElementById('uiRssi').textContent = `${dispRssi.toFixed(1)} dBm`;
+
+    const sign = dispGrad >= 0 ? "+" : "";
+    document.getElementById('uiGrad').textContent = `${sign}${dispGrad.toFixed(2)} dBm/m`;
+    document.getElementById('uiRange').textContent = `${dispRange < 2.5 ? dispRange.toFixed(2) + ' m' : '> 2.5 m'} (${nearestObsName})`;
+  }
+}
+
+// =============================================================================
+// 3D Projection Engine & Slicing
+// =============================================================================
+function project(x, y, z) {
+  let camX, camY, camZ;
+  if (camera.mode === 'chase') {
+    camX = robot.x - 3.6 * Math.cos(robot.theta);
+    camY = robot.y - 3.6 * Math.sin(robot.theta);
+    camZ = 2.1;
+    camera.target = { x: robot.x, y: robot.y, z: 0.4 };
+  } else {
+    camX = camera.target.x + camera.dist * Math.cos(camera.pitch) * Math.sin(camera.yaw);
+    camY = camera.target.y - camera.dist * Math.cos(camera.pitch) * Math.cos(camera.yaw);
+    camZ = camera.target.z + camera.dist * Math.sin(camera.pitch);
+  }
+
+  const dx = x - camX, dy = y - camY, dz = z - camZ;
+  const yaw = (camera.mode === 'chase') ? (robot.theta - Math.PI/2) : camera.yaw;
+  const pitch = (camera.mode === 'chase') ? 0.35 : camera.pitch;
+
+  const cosY = Math.cos(-yaw), sinY = Math.sin(-yaw);
+  const x1 = dx * cosY - dy * sinY;
+  const y1 = dx * sinY + dy * cosY;
+
+  const cosP = Math.cos(-pitch), sinP = Math.sin(-pitch);
+  const z2 = dz * cosP - y1 * sinP;
+  const y2 = dz * sinP + y1 * cosP;
+
+  if (y2 <= 0.1) return null;
+  const scale = camera.fov / y2;
+  return {
+    px: (W / 2) + x1 * scale,
+    py: (H / 2) - z2 * scale,
+    depth: y2
+  };
+}
+
+const drawList = [];
+
+// Wall Segmenter (2m segments prevent disappearing wall clipping in Chase Cam)
+function addWallSegmented(x1, y1, x2, y2, z1, z2, fill, stroke) {
+  const steps = Math.max(1, Math.round(Math.hypot(x2 - x1, y2 - y1) / 2.0));
+  for (let i = 0; i < steps; i++) {
+    const t0 = i / steps, t1 = (i + 1) / steps;
+    const px0 = x1 + (x2 - x1) * t0, py0 = y1 + (y2 - y1) * t0;
+    const px1 = x1 + (x2 - x1) * t1, py1 = y1 + (y2 - y1) * t1;
+    addQuad(
+      { x: px0, y: py0, z: z1 }, { x: px1, y: py1, z: z1 },
+      { x: px1, y: py1, z: z2 }, { x: px0, y: py0, z: z2 },
+      fill, stroke
+    );
+  }
+}
+
+function addQuad(p1, p2, p3, p4, fill, stroke=null) {
+  const s1 = project(p1.x, p1.y, p1.z), s2 = project(p2.x, p2.y, p2.z);
+  const s3 = project(p3.x, p3.y, p3.z), s4 = project(p4.x, p4.y, p4.z);
+  if (!s1 || !s2 || !s3 || !s4) return;
+  const avgDepth = (s1.depth + s2.depth + s3.depth + s4.depth) / 4.0;
+  drawList.push({ type: 'quad', depth: avgDepth, pts: [s1, s2, s3, s4], fill, stroke });
+}
+
+function addLine(p1, p2, col, w=1) {
+  const s1 = project(p1.x, p1.y, p1.z), s2 = project(p2.x, p2.y, p2.z);
+  if (!s1 || !s2) return;
+  const avgDepth = (s1.depth + s2.depth) / 2.0;
+  drawList.push({ type: 'line', depth: avgDepth, p1: s1, p2: s2, col, w });
+}
+
+function addCylinder(cx, cy, baseZ, r, h, sideCol, capCol) {
+  const segs = 10;
+  const b = [], t = [];
+  for (let i = 0; i <= segs; i++) {
+    const a = (i / segs) * 2 * Math.PI;
+    b.push({ x: cx + r * Math.cos(a), y: cy + r * Math.sin(a), z: baseZ });
+    t.push({ x: cx + r * Math.cos(a), y: cy + r * Math.sin(a), z: baseZ + h });
+  }
+  for (let i = 0; i < segs; i++) addQuad(b[i], b[i+1], t[i+1], t[i], sideCol);
+  const sTop = t.map(p => project(p.x, p.y, p.z)).filter(p => p !== null);
+  if (sTop.length >= 3) {
+    const avgDepth = sTop.reduce((acc, p) => acc + p.depth, 0) / sTop.length;
+    drawList.push({ type: 'polygon', depth: avgDepth, pts: sTop, fill: capCol || sideCol });
+  }
+}
+
+function addBox(cx, cy, baseZ, sx, sy, sz, fillCol, edgeCol=null) {
+  const x0 = cx - sx/2, x1 = cx + sx/2;
+  const y0 = cy - sy/2, y1 = cy + sy/2;
+  const z0 = baseZ, z1 = baseZ + sz;
+
+  // 4 vertical faces
+  addQuad({ x: x0, y: y0, z: z0 }, { x: x1, y: y0, z: z0 }, { x: x1, y: y0, z: z1 }, { x: x0, y: y0, z: z1 }, fillCol, edgeCol);
+  addQuad({ x: x1, y: y0, z: z0 }, { x: x1, y: y1, z: z0 }, { x: x1, y: y1, z: z1 }, { x: x1, y: y0, z: z1 }, fillCol, edgeCol);
+  addQuad({ x: x1, y: y1, z: z0 }, { x: x0, y: y1, z: z0 }, { x: x0, y: y1, z: z1 }, { x: x1, y: y1, z: z1 }, fillCol, edgeCol);
+  addQuad({ x: x0, y: y1, z: z0 }, { x: x0, y: y0, z: z0 }, { x: x0, y: y0, z: z1 }, { x: x0, y: y1, z: z1 }, fillCol, edgeCol);
+  // top cap
+  addQuad({ x: x0, y: y0, z: z1 }, { x: x1, y: y0, z: z1 }, { x: x1, y: y1, z: z1 }, { x: x0, y: y1, z: z1 }, fillCol, edgeCol);
+}
+
+// Cohesive Architectural Wall Builder: Baseboard, Wainscot, Chair Rail, Upper Cream
+// Ensures all 4 walls (North, South, East, West) have the exact same harmonious aesthetic
+function addCafeWall(x1, y1, x2, y2) {
+  // 1. Rich Walnut Skirting Baseboard (0.0 to 0.20m)
+  addWallSegmented(x1, y1, x2, y2, 0.0, 0.20, '#5c4a3a', '#433427');
+  // 2. Warm Café Taupe Wainscoting (0.20 to 0.92m)
+  addWallSegmented(x1, y1, x2, y2, 0.20, 0.92, '#cfc5b6', '#b5a997');
+  // 3. Wood Molding Chair Rail (0.92 to 0.96m)
+  addWallSegmented(x1, y1, x2, y2, 0.92, 0.96, '#7a6250', '#5c4a3a');
+  // 4. Warm Café Cream Upper Wall (0.96 to 2.40m)
+  addWallSegmented(x1, y1, x2, y2, 0.96, 2.40, '#eae4dc', '#d5cec4');
+}
+
+// =============================================================================
+// Scene Rendering — Harmonious Modern Café Ambience
+// =============================================================================
+function render() {
+  // 1. Soft daylight background
+  ctx.fillStyle = '#f1f5f9';
+  ctx.fillRect(0, 0, W, H);
+
+  // 2. CHECKERED CAFÉ TILE FLOOR (Drawn first so it never occludes objects)
+  // Two-tone warm cream and latte tiles matching reference images
+  for (let x = -4.0; x < 3.6; x += 1.0) {
+    for (let y = -8.5; y < 8.5; y += 1.0) {
+      const p1 = project(x, y, 0), p2 = project(x + 1.0, y, 0);
+      const p3 = project(x + 1.0, y + 1.0, 0), p4 = project(x, y + 1.0, 0);
+      if (p1 && p2 && p3 && p4) {
+        const isEven = (Math.round(x) + Math.round(y)) % 2 === 0;
+        ctx.fillStyle = isEven ? '#e2d9cc' : '#f5f0eb';
+        ctx.beginPath();
+        ctx.moveTo(p1.px, p1.py); ctx.lineTo(p2.px, p2.py);
+        ctx.lineTo(p3.px, p3.py); ctx.lineTo(p4.px, p4.py);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = '#d6ccc2';
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+      }
+    }
+  }
+
+  // Entrance Welcome Mat at South Doorway
+  const em1 = project(-2.2, -7.8, 0.01), em2 = project(-0.6, -7.8, 0.01);
+  const em3 = project(-0.6, -6.6, 0.01), em4 = project(-2.2, -6.6, 0.01);
+  if (em1 && em2 && em3 && em4) {
+    ctx.fillStyle = '#b45309';
+    ctx.beginPath();
+    ctx.moveTo(em1.px, em1.py); ctx.lineTo(em2.px, em2.py);
+    ctx.lineTo(em3.px, em3.py); ctx.lineTo(em4.px, em4.py);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#78350f'; ctx.lineWidth = 1; ctx.stroke();
+  }
+
+  // 3. Clear and populate 3D Draw List
+  drawList.length = 0;
+
+  // ===========================================================================
+  // HARMONIOUS PERIMETER WALLS (Background and Foreground fully unified)
+  // ===========================================================================
+  // North Wall (Background — facing Chase Cam directly!)
+  addCafeWall(-4.0, 8.5, 3.6, 8.5);
+  // South Wall (Entrance Doorway)
+  addCafeWall(-4.0, -8.5, -2.4, -8.5);
+  addCafeWall(-0.4, -8.5,  3.6, -8.5);
+  // East Wall (Dining area with sunlit windows)
+  addCafeWall(3.6, -8.5, 3.6, 8.5);
+  // West Wall (Kitchen & counter side — now warm & harmonious, no loud orange!)
+  addCafeWall(-4.0, -8.5, -4.0, 8.5);
+
+  // ===========================================================================
+  // ENRICHED BACKGROUND (NORTH WALL) — Directly in Robot's Forward View
+  // ===========================================================================
+  // 1. Large Central Chalkboard Master Menu Board (x = -1.8 to 1.4, z = 1.05 to 1.95)
+  addQuad({ x: -1.8, y: 8.48, z: 1.05 }, { x: 1.4, y: 8.48, z: 1.05 },
+          { x: 1.4, y: 8.48, z: 1.95 }, { x: -1.8, y: 8.48, z: 1.95 }, '#1e293b', '#5c4a3a');
+  // Decorative chalk header & menu lines
+  addLine({ x: -1.6, y: 8.47, z: 1.80 }, { x: 1.2, y: 8.47, z: 1.80 }, '#fef08a', 2);
+  addLine({ x: -1.6, y: 8.47, z: 1.58 }, { x: -0.2, y: 8.47, z: 1.58 }, '#f8fafc', 1.5);
+  addLine({ x:  0.0, y: 8.47, z: 1.58 }, { x:  1.2, y: 8.47, z: 1.58 }, '#f8fafc', 1.5);
+  addLine({ x: -1.6, y: 8.47, z: 1.35 }, { x: -0.2, y: 8.47, z: 1.35 }, '#f8fafc', 1.5);
+  addLine({ x:  0.0, y: 8.47, z: 1.35 }, { x:  1.2, y: 8.47, z: 1.35 }, '#f8fafc', 1.5);
+
+  // 2. Background Walnut Service Credenza / Condiment Station (at base of North Wall)
+  addBox(-0.2, 8.2, 0.0, 1.6, 0.45, 0.85, '#5c4a3a', '#433427');
+  addBox(-0.2, 8.2, 0.85, 1.68, 0.50, 0.04, '#f8fafc', '#cbd5e1'); // White marble top
+  // Ceramic condiment dispensers on top
+  addCylinder(-0.6, 8.2, 0.89, 0.05, 0.10, '#f8fafc', '#e2e8f0');
+  addCylinder(-0.3, 8.2, 0.89, 0.05, 0.10, '#f8fafc', '#e2e8f0');
+  addCylinder( 0.2, 8.2, 0.89, 0.07, 0.14, '#38bdf8', '#bae6fd'); // Water carafe
+
+  // 3. Wall-Mounted Bronze Sconces (Mounted ON the walls — NO floating ceiling wires!)
+  // North Wall Sconces (flanking the chalkboard menu)
+  for (const sx of [-2.4, 2.0]) {
+    addBox(sx, 8.44, 1.45, 0.16, 0.10, 0.22, '#5c4a3a');
+    addBox(sx, 8.40, 1.47, 0.12, 0.12, 0.18, '#fef08a', '#fde047');
+  }
+  // East Wall Sconces (between the sunlit windows)
+  for (const sy of [-3.5, 0.5, 4.5]) {
+    addBox(3.54, sy, 1.45, 0.10, 0.16, 0.22, '#5c4a3a');
+    addBox(3.50, sy, 1.47, 0.12, 0.12, 0.18, '#fef08a', '#fde047');
+  }
+
+  // ===========================================================================
+  // DINING WINDOW WALL (EAST WALL)
+  // ===========================================================================
+  for (const winY of [-5.5, -1.5, 2.5, 6.5]) {
+    // Walnut window frame casing
+    addQuad({ x: 3.59, y: winY - 0.85, z: 0.88 }, { x: 3.59, y: winY + 0.85, z: 0.88 },
+            { x: 3.59, y: winY + 0.85, z: 2.12 }, { x: 3.59, y: winY - 0.85, z: 2.12 }, '#5c4a3a');
+    // Daylight sky glass
+    addQuad({ x: 3.58, y: winY - 0.78, z: 0.94 }, { x: 3.58, y: winY + 0.78, z: 0.94 },
+            { x: 3.58, y: winY + 0.78, z: 2.06 }, { x: 3.58, y: winY - 0.78, z: 2.06 }, '#cce3f5', '#90cdf4');
+    // White cross mullions
+    addLine({ x: 3.57, y: winY, z: 0.94 }, { x: 3.57, y: winY, z: 2.06 }, '#ffffff', 2);
+    addLine({ x: 3.57, y: winY - 0.78, z: 1.50 }, { x: 3.57, y: winY + 0.78, z: 1.50 }, '#ffffff', 2);
+  }
+
+  // ===========================================================================
+  // BARISTA STATION & KITCHEN COUNTER (WEST SIDE)
+  // ===========================================================================
+  // Stainless Steel Backsplash Panel behind counter (clean commercial look)
+  addQuad({ x: -3.98, y: 0.9, z: 0.95 }, { x: -3.98, y: 4.1, z: 0.95 },
+          { x: -3.98, y: 4.1, z: 1.65 }, { x: -3.98, y: 0.9, z: 1.65 }, '#cbd5e1', '#94a3b8');
+
+  // Wall-mounted floating shelf with ceramic mugs
+  addBox(-3.95, 2.5, 1.70, 0.20, 2.8, 0.04, '#7a6250', '#5c4a3a');
+  for (const sy of [1.4, 1.9, 2.5, 3.1, 3.6]) {
+    addCylinder(-3.85, sy, 1.74, 0.06, 0.10, '#ffffff', '#e2e8f0');
+  }
+
+  // 1. Long Service Island Counter (Crisp White Quartz Top + Charcoal/Walnut Base)
+  addBox(-3.0, 2.5, 0.0, 0.85, 3.4, 0.92, '#334155'); // Front cabinet
+  addBox(-3.0, 2.5, 0.92, 0.95, 3.5, 0.04, '#ffffff', '#cbd5e1'); // Quartz countertop overhang
+
+  // POS Touchscreen Register on Counter
+  addBox(-2.75, 1.2, 0.96, 0.22, 0.26, 0.18, '#0f172a');
+  addQuad({ x: -2.63, y: 1.08, z: 1.04 }, { x: -2.63, y: 1.32, z: 1.04 },
+          { x: -2.63, y: 1.32, z: 1.18 }, { x: -2.63, y: 1.08, z: 1.18 }, '#38bdf8');
+
+  // 2. High Bar Stools along Front of Counter
+  for (const stoolY of [1.6, 2.5, 3.4]) {
+    addCylinder(-2.3, stoolY, 0.62, 0.18, 0.04, '#b45309', '#d97706'); // Warm wood seat
+    addCylinder(-2.3, stoolY, 0.0, 0.03, 0.62, '#0f172a'); // Steel leg
+  }
+
+  // 3. Back Kitchen Credenza / Stainless Steel Station
+  addBox(-3.7, 2.5, 0.0, 0.55, 3.2, 0.88, '#94a3b8', '#64748b');
+
+  // 4. Commercial Dual-Group Chrome Espresso Machine (at y = 2.5)
+  addBox(-3.7, 2.5, 0.88, 0.45, 0.85, 0.38, '#cbd5e1', '#64748b');
+  // Twin dark coffee bean hoppers on top
+  addCylinder(-3.7, 2.32, 1.26, 0.08, 0.16, '#1e293b', '#334155');
+  addCylinder(-3.7, 2.68, 1.26, 0.08, 0.16, '#1e293b', '#334155');
+
+  // 5. Glass Bakery & Pastry Showcase (Next to counter at y = 4.8)
+  addBox(-3.0, 4.8, 0.0, 0.80, 1.0, 0.82, '#1e293b');
+  addBox(-3.0, 4.8, 0.82, 0.76, 0.96, 0.46, '#e0f2fe', '#94a3b8');
+  addBox(-3.0, 4.8, 0.95, 0.55, 0.75, 0.03, '#d97706');
+
+  // 6. Upright Beverage Cooler (Matte Charcoal with Smoked Glass — No Loud Neon!)
+  addBox(-3.4, -0.3, 0.0, 0.75, 0.90, 1.95, '#1e293b', '#0f172a');
+  addQuad({ x: -3.02, y: -0.7, z: 0.15 }, { x: -3.02, y: 0.1, z: 0.15 },
+          { x: -3.02, y: 0.1, z: 1.80 }, { x: -3.02, y: -0.7, z: 1.80 }, '#334155', '#475569');
+  // Subtle illuminated beverage rows
+  for (const bz of [0.55, 0.95, 1.35]) {
+    addLine({ x: -3.01, y: -0.65, z: bz }, { x: -3.01, y: 0.05, z: bz }, '#38bdf8', 2);
+  }
+
+  // 7. Potted Green Ficus Plant (Corner decor)
+  addCylinder(-3.6, 7.8, 0.0, 0.24, 0.45, '#5c4a3a');
+  addCylinder(-3.6, 7.8, 0.45, 0.38, 0.55, '#15803d', '#16a34a');
+
+  // ===========================================================================
+  // DINING BISTRO TABLES & CHAIRS (Harmonious Natural Oak Tops)
+  // ===========================================================================
+  for (const tid in TABLES) {
+    const t = TABLES[tid];
+    const isTarget = (parseInt(tid) === currentTargetId);
+
+    // Warm Oak Round Table Top
+    addCylinder(t.x, t.y, 0.72, 0.65, 0.04, '#c28448', '#d97706');
+    // 4 Solid Dark Steel Legs
+    addCylinder(t.x - 0.35, t.y - 0.35, 0, 0.04, 0.72, '#334155');
+    addCylinder(t.x + 0.35, t.y - 0.35, 0, 0.04, 0.72, '#334155');
+    addCylinder(t.x - 0.35, t.y + 0.35, 0, 0.04, 0.72, '#334155');
+    addCylinder(t.x + 0.35, t.y + 0.35, 0, 0.04, 0.72, '#334155');
+
+    // Ceramic coffee cups on tables
+    addCylinder(t.x + 0.15, t.y, 0.76, 0.06, 0.08, '#ffffff', '#e2e8f0');
+
+    // 2 Bistro Chairs per table (North & South)
+    for (const cy of [0.82, -0.82]) {
+      addCylinder(t.x, t.y + cy, 0.44, 0.20, 0.04, '#64748b', '#94a3b8');
+      addCylinder(t.x - 0.12, t.y + cy - 0.12, 0, 0.02, 0.44, '#334155');
+      addCylinder(t.x + 0.12, t.y + cy - 0.12, 0, 0.02, 0.44, '#334155');
+      addCylinder(t.x - 0.12, t.y + cy + 0.12, 0, 0.02, 0.44, '#334155');
+      addCylinder(t.x + 0.12, t.y + cy + 0.12, 0, 0.02, 0.44, '#334155');
+      const by = t.y + cy + (cy > 0 ? 0.16 : -0.16);
+      addQuad({ x: t.x - 0.18, y: by, z: 0.46 }, { x: t.x + 0.18, y: by, z: 0.46 },
+              { x: t.x + 0.18, y: by, z: 0.85 }, { x: t.x - 0.18, y: by, z: 0.85 }, '#475569');
+    }
+
+    // Seated Customers enjoying café atmosphere
+    if (tid == 3) {
+      addCylinder(t.x, t.y + 0.82, 0.46, 0.18, 0.50, '#2563eb', '#3b82f6'); // Blue Sweater Torso
+      addCylinder(t.x, t.y + 0.82, 0.98, 0.10, 0.18, '#fcd34d', '#fde047'); // Head
+    }
+    if (tid == 1) {
+      addCylinder(t.x, t.y - 0.82, 0.46, 0.18, 0.50, '#059669', '#10b981'); // Olive Green Torso
+      addCylinder(t.x, t.y - 0.82, 0.98, 0.10, 0.18, '#fcd34d', '#fde047'); // Head
+    }
+    if (tid == 4) {
+      addCylinder(t.x, t.y + 0.82, 0.46, 0.18, 0.50, '#991b1b', '#b91c1c'); // Burgundy Torso
+      addCylinder(t.x, t.y + 0.82, 0.98, 0.10, 0.18, '#fcd34d', '#fde047'); // Head
+    }
+
+    // Glowing Green Laser Halo Beacon on Selected Delivery Target
+    if (isTarget) {
+      const ringR = 0.85 + 0.18 * Math.sin(Date.now() * 0.005);
+      for (let i = 0; i < 14; i++) {
+        const a1 = (i / 14) * 2 * Math.PI, a2 = ((i+1) / 14) * 2 * Math.PI;
+        addLine({ x: t.x + ringR*Math.cos(a1), y: t.y + ringR*Math.sin(a1), z: 0.78 },
+                { x: t.x + ringR*Math.cos(a2), y: t.y + ringR*Math.sin(a2), z: 0.78 }, '#16a34a', 2);
+      }
+    }
+  }
+
+  // ===========================================================================
+  // BARISTA & WALKING CUSTOMER
+  // ===========================================================================
+  // 1. Professional Barista Behind Coffee Counter
+  addCylinder(barista.x, barista.y, 0.0, 0.16, 0.75, '#0f172a');
+  addCylinder(barista.x, barista.y, 0.75, 0.19, 0.65, '#ffffff', '#f1f5f9');
+  addCylinder(barista.x, barista.y, 1.40, 0.10, 0.18, '#fed7aa', '#fed7aa');
+
+  // 2. Walking Customer (Realistic Path: Entrance Doorway ➔ Order Counter)
+  const legSwing = (customer.waitTimer > 0) ? 0.0 : Math.sin(customer.phase) * 0.18;
+  addCylinder(customer.x - 0.08, customer.y + legSwing, 0.0, 0.06, 0.72, '#1e293b');
+  addCylinder(customer.x + 0.08, customer.y - legSwing, 0.0, 0.06, 0.72, '#1e293b');
+  addCylinder(customer.x, customer.y, 0.72, 0.19, 0.65, '#b91c1c', '#dc2626'); // Warm Crimson Jacket
+  addCylinder(customer.x, customer.y, 1.38, 0.10, 0.18, '#fed7aa', '#fed7aa');
+
+  // ===========================================================================
+  // TURTLEBOT3 DELIVERY ROBOT & SENSORS
+  // ===========================================================================
+  // Breadcrumb Trail (Clean blue navigation trajectory)
+  for (let i = 0; i < robot.path.length - 1; i++) {
+    addLine({ x: robot.path[i].x, y: robot.path[i].y, z: 0.02 },
+            { x: robot.path[i+1].x, y: robot.path[i+1].y, z: 0.02 }, '#0284c7', 2);
+  }
+
+  // Robot Chassis
+  addCylinder(robot.x, robot.y, 0.02, robot.radius, 0.18, '#1e293b', '#334155');
+  addCylinder(robot.x, robot.y, 0.20, 0.18, 0.02, '#94a3b8', '#cbd5e1'); // Food delivery platter
+  addCylinder(robot.x, robot.y, 0.22, 0.10, 0.08, '#cbd5e1', '#f1f5f9'); // Core LiDAR housing
+
+  // Heading pointer arrow
+  const hX = robot.x + 0.48 * Math.cos(robot.theta);
+  const hY = robot.y + 0.48 * Math.sin(robot.theta);
+  addLine({ x: robot.x, y: robot.y, z: 0.24 }, { x: hX, y: hY, z: 0.24 }, '#0284c7', 3);
+
+  // Front LiDAR Visual Cone
+  const rayR = Math.min(robot.range, 1.8);
+  const cL = { x: robot.x + rayR*Math.cos(robot.theta - 0.55), y: robot.y + rayR*Math.sin(robot.theta - 0.55), z: 0.20 };
+  const cR = { x: robot.x + rayR*Math.cos(robot.theta + 0.55), y: robot.y + rayR*Math.sin(robot.theta + 0.55), z: 0.20 };
+  const scanCol = (robot.range < 0.65) ? '#dc2626' : '#16a34a';
+  addLine({ x: robot.x, y: robot.y, z: 0.20 }, cL, scanCol, 1);
+  addLine({ x: robot.x, y: robot.y, z: 0.20 }, cR, scanCol, 1);
+  addLine(cL, cR, scanCol, 1);
+
+  // ===========================================================================
+  // Depth Sort Back-to-Front (Painter's Algorithm)
+  // ===========================================================================
+  drawList.sort((a, b) => b.depth - a.depth);
+
+  for (const item of drawList) {
+    if (item.type === 'quad') {
+      ctx.fillStyle = item.fill;
+      ctx.beginPath();
+      ctx.moveTo(item.pts[0].px, item.pts[0].py);
+      ctx.lineTo(item.pts[1].px, item.pts[1].py);
+      ctx.lineTo(item.pts[2].px, item.pts[2].py);
+      ctx.lineTo(item.pts[3].px, item.pts[3].py);
+      ctx.closePath();
+      ctx.fill();
+      if (item.stroke) { ctx.strokeStyle = item.stroke; ctx.lineWidth = 1; ctx.stroke(); }
+    } else if (item.type === 'polygon') {
+      ctx.fillStyle = item.fill;
+      ctx.beginPath();
+      ctx.moveTo(item.pts[0].px, item.pts[0].py);
+      for (let i = 1; i < item.pts.length; i++) ctx.lineTo(item.pts[i].px, item.pts[i].py);
+      ctx.closePath();
+      ctx.fill();
+    } else if (item.type === 'line') {
+      ctx.strokeStyle = item.col;
+      ctx.lineWidth = item.w;
+      ctx.beginPath();
+      ctx.moveTo(item.p1.px, item.p1.py);
+      ctx.lineTo(item.p2.px, item.p2.py);
+      ctx.stroke();
+    }
+  }
+}
+
+// 60 FPS Animation Loop
+let lastT = performance.now();
+function loop(now) {
+  const dt = Math.min(0.06, (now - lastT) / 1000.0);
+  lastT = now;
+  updateSimulation(dt);
+  render();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+// UI Events
+document.getElementById('btnDispatch').addEventListener('click', () => {
+  currentTargetId = parseInt(document.getElementById('tableTarget').value);
+  targetPos = TABLES[currentTargetId];
+  robot.state = "FORWARD_TRACKING";
+});
+
+document.getElementById('btnPlay').addEventListener('click', () => {
+  isRunning = !isRunning;
+  document.getElementById('btnPlay').textContent = isRunning ? "⏸ Pause" : "▶ Resume";
+});
+
+document.getElementById('btnReset').addEventListener('click', () => {
+  robot.x = 0.5; robot.y = -1.5; robot.theta = Math.PI / 2;
+  robot.v = 0.0; robot.w = 0.0; robot.path = [];
+  robot.state = "FORWARD_TRACKING";
+});
+
+document.getElementById('btnExportCSV').addEventListener('click', () => {
+  if (telemetryLogs.length === 0) { alert("Please let the simulation run for a few seconds to record telemetry."); return; }
+  let csv = "Timestamp_s,Robot_X,Robot_Y,Heading_deg,Linear_v_ms,Angular_w_rads,RSSI_dBm,RSSI_Gradient_dBm_per_m,Obstacle_Range_m,Nearest_Obstacle,Target_Table,FSM_State\n";
+  telemetryLogs.forEach(r => {
+    csv += `${r.time},${r.x},${r.y},${r.heading},${r.v},${r.w},${r.rssi},${r.gradient},${r.range},"${r.obs}",${r.target},${r.state}\n`;
+  });
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = "delivery_telemetry.csv";
+  a.click();
+});
+</script>
+</body>
+</html>

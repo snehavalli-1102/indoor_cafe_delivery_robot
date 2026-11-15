@@ -1,0 +1,15 @@
+# ROS 2 Build & Install Artifacts
+build/
+install/
+log/
+
+# Python Cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Temporary & OS Files
+.DS_Store
+Thumbs.db
+Desktop.ini

@@ -1,0 +1,19 @@
+{
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}/src/rf_delivery_bot"
+    ],
+    "python.terminal.activateEnvironment": true,
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/.pytest_cache": true,
+        "**/build": false,
+        "**/install": false,
+        "**/log": false
+    },
+    "editor.tabSize": 4,
+    "editor.insertSpaces": true,
+    "files.associations": {
+        "*.sdf": "xml",
+        "*.world": "xml"
+    }
+}

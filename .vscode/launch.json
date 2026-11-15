@@ -1,0 +1,27 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "🌐 1. Launch 3D Restaurant Simulation (Browser / Zero-Setup)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/sim_3d/restaurant_3d.html",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "🤖 2. Run RSSI Navigator Node (ROS 2 Python)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/rf_delivery_bot/rf_delivery_bot/rssi_navigator.py",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "📡 3. Run RSSI Filter Node (Python Simulation Mode)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/rf_delivery_bot/rssi_filter/rssi_filter_node.py",
+            "console": "integratedTerminal",
+            "args": ["--ros-args", "-p", "sim_mode:=true"]
+        }
+    ]
+}
