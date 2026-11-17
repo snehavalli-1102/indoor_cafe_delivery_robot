@@ -1,0 +1,176 @@
+# RF Delivery Bot — Implementation Report
+> ROS 2 Humble · Gazebo Fortress · RSSI Gradient Navigation
+
+## Workspace Location
+`C:\Users\User\.gemini\antigravity\scratch\ros2_ws\src\rf_delivery_bot\`
+
+> [!IMPORTANT]
+> This is a Windows-side staging area. To build and run, copy the entire `ros2_ws/` tree to your Ubuntu/Linux ROS 2 Humble environment (e.g. via `scp`, WSL, or a shared drive), then follow the build steps below.
+
+---
+
+## File Tree (20 files delivered)
+
+```
+ros2_ws/src/rf_delivery_bot/
+├── package.xml                          # ament_python, format=3
+├── setup.py                             # entry points + data_files
+├── setup.cfg
+├── README.md
+├── resource/
+│   └── rf_delivery_bot                  # ament index marker (empty)
+├── rf_delivery_bot/
+│   ├── __init__.py
+│   └── rssi_navigator.py                # ★ improved navigator node
+├── rssi_filter/
+│   ├── __init__.py
+│   └── rssi_filter_node.py              # filter + sim_mode
+├── worlds/
+│   └── indoor_delivery.sdf              # Gazebo Fortress world
+├── launch/
+│   └── delivery_launch.py              # full system launch
+└── scripts/
+    └── run_simulation.sh                # one-shot automation script
+```
+
+---
+
+## Issue 1 — Obstacle Avoidance: Multi-Phase State Machine
+
+### Before (original logic)
+```
+if obstacle < 0.5m:
+    turn in place          ← robot oscillates / gets stuck
+else:
+    move forward if RSSI improving
+```
+
+### After — `AvoidPhase` enum with 5 states
+
+```mermaid
+stateDiagram-v2
+    [*] --> CLEAR : startup
+    CLEAR --> BACK : obstacle < 0.5 m detected
+    BACK --> ARC : 0.8 s elapsed\n(reverse at –0.15 m/s)
+    ARC --> VERIFY : 1.5 s elapsed\n(arc turn ±0.5 rad/s + 0.1 m/s fwd)
+    VERIFY --> RESUME : path clear after 0.5 s
+    VERIFY --> BACK : still blocked → flip threat side
+    RESUME --> CLEAR : RSSI reference synced
+```
+
+| Phase | Duration | linear.x | angular.z | Purpose |
+|-------|----------|----------|-----------|---------|
+| `BACK` | 0.8 s | −0.15 m/s | 0 | Reverse to gain clearance |
+| `ARC` | 1.5 s | +0.10 m/s | ±0.5 rad/s | Arc away from threat side |
+| `VERIFY` | 0.5 s | +0.08 m/s | 0 | Creep-check path is clear |
+| `RESUME` | instant | 0 | 0 | Sync RSSI reference → CLEAR |
+
+**Anti-oscillation:** `_threat_side` alternates `'left'` ↔ `'right'` on each re-block, so the robot arcs the other way if the first escape attempt fails.
+
+---
+
+## Issue 2 — World File: Visual Artifacts Fixed
+
+| Fix | Detail |
+|-----|--------|
+| No black spheres | Zero placeholder geometry — every model is fully specified |
+| Counter z-position | `z=0.45` = exactly half of 0.9 m height → flush with floor |
+| Robot spawn | `y=−4.5, z=0.1` — near entrance gap, not inside any geometry |
+| South wall entrance | Split into two 6.75 m segments leaving a 1.5 m central gap |
+| All objects z = ½ height | Tables `z=0.36`, chairs `z=0.225`, walls `z=1.4`, floor `z=−0.025` |
+| Windows | Visual-only (no `<collision>`), semi-transparent blue `0.3` alpha |
+
+**World layout (top view):**
+```
+ ┌─────────────────────────────────────┐  y=+6
+ │  north wall                         │
+ │      [kitchen counter y=4.8]        │
+ │  H1(0,3.5)                          │
+ │  T1(-4,2) T3(0,2) T5(4,2)          │
+ │      H2(2,0.5)                      │
+ │  T2(-4,-2) T4(0,-2) T6(4,-2)       │
+ │      H3(-2,-1)                      │
+ │          [robot spawn y=-4.5]       │
+ └────────────────── ══ ──────────────┘  y=-6
+  west                entrance         east
+       x=-7.5     x=0 (gap 1.5m)   x=+7.5
+```
+
+---
+
+## Issue 3 — Launch & Automation Pipeline
+
+### `delivery_launch.py` sequence
+```
+t=0s   Gazebo Fortress starts (gz sim -r indoor_delivery.sdf)
+t=0s   ros_gz_bridge starts (/ultrasonic gz→ros, /cmd_vel ros→gz)
+t=3s   rssi_filter starts (sim_mode=True → synthetic sinusoidal RSSI)
+t=3s   rssi_navigator starts (all params from launch file)
+```
+
+### `run_simulation.sh` features
+- Sources `/opt/ros/humble/setup.bash` + workspace overlay
+- Launches full system in background, captures PID
+- Waits 5 s, then starts `ros2 bag record` on `/filtered_rssi /cmd_vel /ultrasonic/range`
+- `trap SIGINT` → clean shutdown of both background processes on Ctrl+C
+- Bag saved to `~/ros2_ws/logs/delivery_run_<timestamp>/`
+
+---
+
+## RSSI Filter Node — `rssi_filter_node.py`
+
+| Param | Default | Description |
+|-------|---------|-------------|
+| `filter_type` | `'ema'` | `'ema'` or `'moving_avg'` |
+| `sim_mode` | `False` | Synthetic sinusoidal RSSI (no hardware needed) |
+
+**Simulation signal:** −55 dBm ± 10 dBm at 0.2 Hz (5 s/cycle), published at 10 Hz through the same EMA/moving-avg pipeline.
+
+**Watchdog:** if no raw data for 2 s, re-publishes last value with a `WARN` log.
+
+---
+
+## Build & Run (on Linux ROS 2 Humble)
+
+```bash
+# 1. Copy workspace to Linux
+scp -r ros2_ws/ user@ubuntu-host:~/
+
+# 2. Build
+cd ~/ros2_ws
+colcon build --symlink-install
+source install/setup.bash
+
+# 3a. One-command run
+chmod +x src/rf_delivery_bot/scripts/run_simulation.sh
+bash src/rf_delivery_bot/scripts/run_simulation.sh
+
+# 3b. Manual launch
+ros2 launch rf_delivery_bot delivery_launch.py
+```
+
+> [!TIP]
+> **No real RSSI hardware?** The `rssi_filter` node's `sim_mode=True` (already set in the launch file) generates a synthetic sinusoidal signal — the full pipeline runs without any Wi-Fi/Bluetooth beacon hardware.
+
+---
+
+## ROS 2 Topic Map
+
+| Topic | Msg Type | Direction | Publisher | Subscriber |
+|-------|----------|-----------|-----------|------------|
+| `/raw_rssi` | `std_msgs/Float32` | hardware → ROS | External beacon | `rssi_filter` |
+| `/filtered_rssi` | `std_msgs/Float32` | internal | `rssi_filter` | `rssi_navigator` |
+| `/ultrasonic/range` | `sensor_msgs/Range` | Gazebo → ROS | `ros_gz_bridge` | `rssi_navigator` |
+| `/cmd_vel` | `geometry_msgs/Twist` | ROS → Gazebo | `rssi_navigator` | `ros_gz_bridge` |
+
+---
+
+## Prerequisites
+
+```
+ros-humble-desktop
+ros-humble-ros-gz-bridge
+ros-humble-turtlebot3*
+gz-fortress   (Gazebo Fortress / Ignition Gazebo 6)
+python3-colcon-common-extensions
+```
