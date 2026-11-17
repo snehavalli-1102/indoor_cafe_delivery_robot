@@ -1,32 +1,127 @@
-# Autonomous Mapless Indoor Café Delivery Robot (ROS 2 & Gazebo Fortress)
+# Indoor Café Delivery Robot – Setup & Run Guide
 
-Autonomous indoor delivery robot utilizing **RF/RSSI Gradient Ascent Navigation** combined with reactive **Frontal LiDAR / Ultrasonic Obstacle Avoidance** in a multi-table dining restaurant environment without prior static occupancy grid maps.
+## 📦 Repository Overview
+This repository contains a ROS 2 package that simulates an autonomous indoor café delivery robot, a **3‑D digital twin** (`sim_3d/restaurant_3d.html`), telemetry scripts, and utility batch files.
 
----
+## 🛠 Prerequisites
+| Tool | Version | Install Guide |
+|------|---------|--------------|
+| **ROS 2 Foxy** | >= foxy | <https://docs.ros.org/en/foxy/Installation/Ubuntu-Install-Debians.html> (Windows via `choco install ros-foxy-desktop` or WSLE) |
+| **colcon** | latest | `pip install -U colcon-common-extensions` |
+| **Node.js** | 20+ | <https://nodejs.org/en/download/> |
+| **Python 3** | 3.9+ | Included with ROS 2 |
+| **Git** | latest | <https://git-scm.com/downloads> |
+| **PowerShell** | Windows default |
 
-## 🚀 Key Features
-1. **Mapless Gradient Ascent:** Drives directly toward table radio beacons using Log-Distance Path Loss RSSI gradient ($\Delta RSSI / \Delta s$) with Exponential Moving Average (EMA) filtering.
-2. **Obstacle Detour & Local Minima Escape:** Handles table legs, chairs, and dynamic walking pedestrians without deadlock or trailing loops.
-3. **Corridor Waypoint Guidance:** Traverses central dining aisles cleanly before branching directly to the destination table.
-4. **Zero-Setup 3D Digital Twin:** Standalone browser-based 3D simulation matching Gazebo Fortress physics and restaurant world geometry (`sim_3d/restaurant_3d.html`).
-5. **Real-Time Telemetry & Gradient Logging:** Logs linear/angular speeds, RSSI, and spatial gradients to CSV with automated plotting scripts.
+> **Note**: All commands below assume you are using the PowerShell terminal on Windows.
 
----
-
-## 🛠️ Quick Start (Windows Standalone)
-Double-click:
-* `START_3D_SIMULATION.bat` — Launches the complete 3D Gazebo digital twin.
-* `VIEW_TELEMETRY_PLOTS.bat` — Generates 4-panel scientific telemetry & gradient graphs.
-
----
-
-## 🤖 Running in Native ROS 2 Humble & Gazebo Fortress (WSL / Ubuntu)
-```bash
-# 1. Build package
-cd ~/ros2_ws
-colcon build --symlink-install
-source install/setup.bash
-
-# 2. Launch simulation & navigation stack
-ros2 launch rf_delivery_bot delivery_launch.py
+## 📁 Workspace Layout (already created)
 ```
+ros2_ws/
+│   README_SETUP.md          ← *this file*
+│   colcon.meta               # colcon config (optional)
+│
+├─ src/                     # ROS2 source folder
+│   └─ cafe_sim/            # ROS2 package for the café simulation
+│
+├─ sim_3d/                  # HTML/JS digital‑twin
+│   └─ restaurant_3d.html
+│
+├─ scripts/                 # Python telemetry/analysis scripts
+│   └─ plot_telemetry_analytics.py
+│
+├─ batch/                  # Convenience .bat files
+│   ├─ START_3D_SIMULATION.bat
+│   └─ VIEW_TELEMETRY_PLOTS.bat
+│
+└─ .gitignore               # Ignored files
+```
+
+## 🚀 Quick‑Start Steps
+### 1️⃣ Clone the repository (if you haven’t already)
+```powershell
+git clone https://github.com/snehavalli-1102/indoor_cafe_delivery_robot.git
+cd indoor_cafe_delivery_robot
+```
+> If you already have the workspace locally (as you are working inside `C:\Users\User\.gemini\antigravity\scratch\ros2_ws`), you can skip this step.
+
+### 2️⃣ Install ROS 2 dependencies
+```powershell
+# Inside the workspace root (ros2_ws)
+colcon build --symlink-install
+```
+This will compile the `cafe_sim` package and generate the install overlay.
+
+### 3️⃣ Source the ROS 2 environment
+```powershell
+# Run this after each new terminal session before using ROS commands
+. install/setup.ps1
+```
+*(The leading dot sources the script in PowerShell.)*
+
+### 4️⃣ Launch the Gazebo simulation (optional – if you want the physics engine)
+```powershell
+ros2 launch cafe_sim cafe.launch.py
+```
+A Gazebo window will appear with the café environment.
+
+### 5️⃣ Run the 3‑D Digital Twin (HTML)
+You have two options:
+* **Batch file** – double‑click `batch\START_3D_SIMULATION.bat` or run:
+  ```powershell
+  .\batch\START_3D_SIMULATION.bat
+  ```
+* **Directly open** – open `sim_3d\restaurant_3d.html` in any modern browser (Chrome/Edge/Firefox). The UI now includes a **How to Run** dropdown that shows the same instructions.
+
+### 6️⃣ View Telemetry Plots
+```powershell
+# Either run the script directly
+python scripts\plot_telemetry_analytics.py
+
+# Or use the provided batch file
+.\batch\VIEW_TELEMETRY_PLOTS.bat
+```
+Plots will be saved under `logs/` and displayed using Matplotlib.
+
+### 7️⃣ Dispatch a food order (in‑simulation UI)
+1. Choose a destination table from the **Select Destination Table** dropdown in the sidebar.
+2. Click **🚀 Dispatch Food Order**.
+3. Observe the robot navigate, telemetry updates, and the toast notification on success.
+
+## 📤 Git Workflow (pushing your changes)
+1. **Add your changes**
+   ```powershell
+   git add .
+   ```
+2. **Commit**
+   ```powershell
+   git commit -m "Your descriptive message"
+   ```
+3. **Set the remote (once)** – replace `<YOUR‑USERNAME>` if needed:
+   ```powershell
+   git -c safe.directory=* remote add origin https://github.com/snehavalli-1102/indoor_cafe_delivery_robot.git
+   ```
+4. **Push to GitHub**
+   ```powershell
+   git -c safe.directory=* push -u origin main
+   ```
+   You will be prompted for your GitHub username (`snehavalli-1102`) and a **Personal Access Token** (PAT) with `repo` scope as the password.
+
+## 🧹 Cleaning Up
+* To remove the build artefacts:
+  ```powershell
+  colcon build --cmake-clean-cache   # optional
+  rm -r build install log
+  ```
+* To reset the Git history (use with caution):
+  ```powershell
+  git reset --hard HEAD~1   # go back one commit
+  ```
+
+## 📚 Additional Resources
+- ROS 2 Documentation: <https://docs.ros.org/en/foxy/index.html>
+- Gazebo 6 Guide: <https://gazebosim.org/docs/latest>
+- Antigravity IDE: <https://github.com/google/antigravity>
+
+---
+*Generated by Antigravity agent – keep this file updated as the project evolves.*
